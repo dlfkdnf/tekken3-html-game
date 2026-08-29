@@ -21,7 +21,7 @@ canvasContainer.style.pointerEvents = 'none'; // Prevent canvas from blocking in
 canvasContainer.appendChild(renderer.domElement);
 document.getElementById('gameContainer').insertBefore(canvasContainer, document.getElementById('gameContainer').firstChild);
 
-camera.position.set(0, 5, 15);
+camera.position.set(0, 8, 20);
 camera.lookAt(0, 2, 0);
 
 // Lighting
@@ -70,7 +70,7 @@ const texture = new THREE.CanvasTexture(canvas);
 groundMaterial.map = texture;
 groundMaterial.needsUpdate = true;
 
-// Background walls
+// Background walls - moved further back
 const wallGeometry = new THREE.PlaneGeometry(30, 15);
 const wallMaterial = new THREE.MeshStandardMaterial({ 
     color: 0x1a1a1a,
@@ -79,11 +79,11 @@ const wallMaterial = new THREE.MeshStandardMaterial({
 });
 
 const backWall = new THREE.Mesh(wallGeometry, wallMaterial);
-backWall.position.set(0, 7.5, -10);
+backWall.position.set(0, 7.5, -15); // Moved further back
 scene.add(backWall);
 
 const frontWall = new THREE.Mesh(wallGeometry, wallMaterial);
-frontWall.position.set(0, 7.5, 10);
+frontWall.position.set(0, 7.5, 15); // Moved further back
 scene.add(frontWall);
 
 // Game State
@@ -492,12 +492,12 @@ function animate() {
         }
     }
     
-    // Camera follow
+    // Camera follow - adjusted Z position
     if (player1 && player2) {
         const centerX = (player1.position.x + player2.position.x) / 2;
         const centerZ = (player1.position.z + player2.position.z) / 2;
         camera.position.x = centerX;
-        camera.position.z = centerZ + 15;
+        camera.position.z = centerZ + 20; // Increased from 15 to 20
     }
     
     renderer.render(scene, camera);
