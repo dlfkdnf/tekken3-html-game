@@ -17,15 +17,15 @@ canvasContainer.style.left = '0';
 canvasContainer.style.width = '100%';
 canvasContainer.style.height = '100%';
 canvasContainer.style.zIndex = '1';
-canvasContainer.style.pointerEvents = 'none'; // Prevent canvas from blocking interactions
+canvasContainer.style.pointerEvents = 'none';
 canvasContainer.appendChild(renderer.domElement);
 document.getElementById('gameContainer').insertBefore(canvasContainer, document.getElementById('gameContainer').firstChild);
 
-camera.position.set(0, 5, 15);
-camera.lookAt(0, 2, 0);
+camera.position.set(0, 3, 12);
+camera.lookAt(0, 1.5, 0);
 
 // Lighting
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
 scene.add(ambientLight);
 
 const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
@@ -81,20 +81,23 @@ const gameState = {
 
 const keys = {};
 
-// Character Class
+// Character Class - Tekken style (2D fighting on Z axis)
 class Character {
     constructor(x, color, name, isPlayer2 = false) {
         this.isPlayer2 = isPlayer2;
         this.name = name;
         this.color = color;
+        this.facing = isPlayer2 ? 1 : -1; // Face direction
         
-        // Position and movement
+        // Position and movement (Z axis for forward/backward in Tekken)
         this.position = new THREE.Vector3(x, 0, 0);
         this.velocity = new THREE.Vector3(0, 0, 0);
-        this.moveSpeed = 0.15;
-        this.jumpPower = 0.5;
+        this.moveSpeed = 0.2;
+        this.jumpPower = 0.8;
         this.isJumping = false;
-        this.isGrounded = false;
+        this.isGrounded = true;
+        this.isCrouching = false;
+        this.crouchHeight = 0.5;
         
         // Combat stats
         this.maxHealth = 100;
@@ -104,15 +107,10 @@ class Character {
         
         // Attack state
         this.isAttacking = false;
-        this.attackCooldown = 0; // in milliseconds
-        this.attackType = null; // 'weak' or 'strong'
-        this.lastAttackTime = 0;
+        this.attackCooldown = 0;
+        this.attackType = null;
         this.comboCounter = 0;
-        this.comboLastAttackTime = 0; // Track when last attack was for combo
-        
-        // Defense
-        this.isBlocking = false;
-        this.blockCooldown = 0;
+        this.comboLastAttackTime = 0;
         
         // Model
         this.createModel();
@@ -121,102 +119,141 @@ class Character {
     createModel() {
         this.group = new THREE.Group();
         
-        // Body (Torso)
-        const bodyGeometry = new THREE.BoxGeometry(0.6, 1.0, 0.3);
+        // Head
+        const headGeometry = new THREE.SphereGeometry(0.3, 32, 32);
+        const skinMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0xffdbac,
+            metalness: 0.1,
+            roughness: 0.8
+        });
+        this.head = new THREE.Mesh(headGeometry, skinMaterial);
+        this.head.position.y = 1.6;
+        this.head.castShadow = true;
+        this.head.receiveShadow = true;
+        this.group.add(this.head);
+        
+        // Body Material
         const bodyMaterial = new THREE.MeshStandardMaterial({ 
             color: this.color,
             metalness: 0.2,
             roughness: 0.8
         });
-        this.body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-        this.body.position.y = 0.5;
-        this.body.castShadow = true;
-        this.body.receiveShadow = true;
-        this.group.add(this.body);
         
-        // Head
-        const headGeometry = new THREE.SphereGeometry(0.25, 32, 32);
-        const headMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0xffdbac,
-            metalness: 0.1,
-            roughness: 0.9
-        });
-        this.head = new THREE.Mesh(headGeometry, headMaterial);
-        this.head.position.y = 1.4;
-        this.head.castShadow = true;
-        this.head.receiveShadow = true;
-        this.group.add(this.head);
+        // Torso
+        const torsoGeometry = new THREE.BoxGeometry(0.5, 1.1, 0.35);
+        this.torso = new THREE.Mesh(torsoGeometry, bodyMaterial);
+        this.torso.position.y = 0.85;
+        this.torso.castShadow = true;
+        this.torso.receiveShadow = true;
+        this.group.add(this.torso);
+        
+        // Neck
+        const neckGeometry = new THREE.CylinderGeometry(0.15, 0.2, 0.2, 16);
+        const neckMesh = new THREE.Mesh(neckGeometry, bodyMaterial);
+        neckMesh.position.y = 1.5;
+        neckMesh.castShadow = true;
+        this.group.add(neckMesh);
         
         // Left Arm
-        const armGeometry = new THREE.BoxGeometry(0.2, 0.9, 0.2);
+        const armGeometry = new THREE.CylinderGeometry(0.12, 0.1, 0.95, 16);
         this.leftArm = new THREE.Mesh(armGeometry, bodyMaterial);
-        this.leftArm.position.set(-0.4, 0.7, 0);
+        this.leftArm.position.set(-0.4, 0.9, 0);
+        this.leftArm.rotation.z = 0.3;
         this.leftArm.castShadow = true;
         this.leftArm.receiveShadow = true;
         this.group.add(this.leftArm);
         
         // Right Arm
         this.rightArm = new THREE.Mesh(armGeometry, bodyMaterial);
-        this.rightArm.position.set(0.4, 0.7, 0);
+        this.rightArm.position.set(0.4, 0.9, 0);
+        this.rightArm.rotation.z = -0.3;
         this.rightArm.castShadow = true;
         this.rightArm.receiveShadow = true;
         this.group.add(this.rightArm);
         
         // Left Leg
-        const legGeometry = new THREE.BoxGeometry(0.2, 0.8, 0.2);
+        const legGeometry = new THREE.CylinderGeometry(0.15, 0.12, 0.95, 16);
         this.leftLeg = new THREE.Mesh(legGeometry, bodyMaterial);
-        this.leftLeg.position.set(-0.2, 0, 0);
+        this.leftLeg.position.set(-0.2, 0.3, 0);
         this.leftLeg.castShadow = true;
         this.leftLeg.receiveShadow = true;
         this.group.add(this.leftLeg);
         
         // Right Leg
         this.rightLeg = new THREE.Mesh(legGeometry, bodyMaterial);
-        this.rightLeg.position.set(0.2, 0, 0);
+        this.rightLeg.position.set(0.2, 0.3, 0);
         this.rightLeg.castShadow = true;
         this.rightLeg.receiveShadow = true;
         this.group.add(this.rightLeg);
+        
+        // Hands (small spheres)
+        const handGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+        const leftHand = new THREE.Mesh(handGeometry, skinMaterial);
+        leftHand.position.set(-0.4, 0.2, 0);
+        leftHand.castShadow = true;
+        this.group.add(leftHand);
+        
+        const rightHand = new THREE.Mesh(handGeometry, skinMaterial);
+        rightHand.position.set(0.4, 0.2, 0);
+        rightHand.castShadow = true;
+        this.group.add(rightHand);
+        
+        // Feet (small boxes)
+        const footGeometry = new THREE.BoxGeometry(0.12, 0.1, 0.25);
+        const leftFoot = new THREE.Mesh(footGeometry, bodyMaterial);
+        leftFoot.position.set(-0.2, -0.05, 0.1);
+        leftFoot.castShadow = true;
+        this.group.add(leftFoot);
+        
+        const rightFoot = new THREE.Mesh(footGeometry, bodyMaterial);
+        rightFoot.position.set(0.2, -0.05, 0.1);
+        rightFoot.castShadow = true;
+        this.group.add(rightFoot);
         
         this.group.position.copy(this.position);
         scene.add(this.group);
         
         // Animation state
         this.animationState = 'idle';
-        this.animationFrame = 0;
     }
     
     getInput() {
         if (!gameState.running) return;
         
-        let moveX = 0;
-        let moveZ = 0;
+        let moveForward = false;
+        let moveBackward = false;
+        let jump = false;
+        let crouch = false;
         let attackWeak = false;
         let attackStrong = false;
-        let jump = false;
         
         if (this.isPlayer2) {
-            // Player 2 controls (WASD + O/P)
-            if (keys['w'] || keys['W']) moveZ = -1;
-            if (keys['s'] || keys['S']) moveZ = 1;
-            if (keys['a'] || keys['A']) moveX = -1;
-            if (keys['d'] || keys['D']) moveX = 1;
+            // Player 2: WASD (W forward, S backward)
+            if (keys['w'] || keys['W']) moveForward = true;
+            if (keys['s'] || keys['S']) moveBackward = true;
+            if (keys['a'] || keys['A']) crouch = true;
             if (keys['o'] || keys['O']) attackWeak = true;
             if (keys['p'] || keys['P']) attackStrong = true;
             if (keys[' ']) jump = true;
         } else {
-            // Player 1 controls (Arrow keys + Z/X)
-            if (keys['ArrowUp']) moveZ = -1;
-            if (keys['ArrowDown']) moveZ = 1;
-            if (keys['ArrowLeft']) moveX = -1;
-            if (keys['ArrowRight']) moveX = 1;
+            // Player 1: Arrow keys (Up forward, Down backward)
+            if (keys['ArrowUp']) moveForward = true;
+            if (keys['ArrowDown']) moveBackward = true;
+            if (keys['ArrowLeft']) crouch = true;
             if (keys['z'] || keys['Z']) attackWeak = true;
             if (keys['x'] || keys['X']) attackStrong = true;
             if (keys[' ']) jump = true;
         }
         
-        this.move(moveX, moveZ);
+        this.move(moveForward, moveBackward);
         
-        if (jump && this.isGrounded) {
+        if (crouch && this.isGrounded && !this.isJumping) {
+            this.crouch();
+        } else if (!crouch) {
+            this.isCrouching = false;
+        }
+        
+        if (jump && this.isGrounded && !this.isCrouching) {
             this.jump();
         }
         
@@ -229,39 +266,44 @@ class Character {
         }
     }
     
-    move(x, z) {
-        if (this.isAttacking) return;
+    move(forward, backward) {
+        if (this.isAttacking || this.isCrouching) {
+            this.velocity.z = 0;
+            this.animationState = 'idle';
+            return;
+        }
         
-        const moveDir = new THREE.Vector3(x, 0, z).normalize();
-        
-        this.velocity.x = moveDir.x * this.moveSpeed;
-        this.velocity.z = moveDir.z * this.moveSpeed;
-        
-        // Rotate character to face movement direction
-        if (moveDir.length() > 0) {
-            this.group.rotation.y = Math.atan2(moveDir.x, moveDir.z);
+        if (forward) {
+            this.velocity.z = this.moveSpeed * this.facing;
             this.animationState = 'running';
+        } else if (backward) {
+            this.velocity.z = -this.moveSpeed * this.facing;
+            this.animationState = 'running_back';
         } else {
+            this.velocity.z = 0;
             this.animationState = 'idle';
         }
+    }
+    
+    crouch() {
+        this.isCrouching = true;
+        this.animationState = 'crouch';
     }
     
     jump() {
         this.velocity.y = this.jumpPower;
         this.isJumping = true;
         this.isGrounded = false;
+        this.animationState = 'jump';
     }
     
     attack(type) {
-        // FIX #1: Check if both players exist before trying to attack
         const opponent = player1 === this ? player2 : player1;
         if (!opponent) return;
         
-        // FIX #3: Use actual elapsed time for cooldown (milliseconds)
         const now = Date.now();
         if (this.attackCooldown > 0) return;
         
-        // FIX #2: Check combo window properly (0.5 seconds)
         if (now - this.comboLastAttackTime < 500) {
             this.comboCounter++;
         } else {
@@ -275,16 +317,16 @@ class Character {
         
         const damage = type === 'weak' ? 5 : 15;
         const staminaCost = type === 'weak' ? 5 : 15;
-        const cooldown = type === 'weak' ? 300 : 500; // milliseconds
+        const cooldown = type === 'weak' ? 300 : 500;
         
         if (this.stamina < staminaCost) return;
         
         this.stamina = Math.max(0, this.stamina - staminaCost);
         this.attackCooldown = cooldown;
         
-        // Check for hit on opponent
-        const distance = this.position.distanceTo(opponent.position);
-        const hitRange = 2.5;
+        // Check for hit (same Z line)
+        const distance = Math.abs(this.position.z - opponent.position.z);
+        const hitRange = 1.5;
         
         if (distance < hitRange) {
             const damageWithCombo = damage + (this.comboCounter - 1) * 2;
@@ -307,7 +349,7 @@ class Character {
     
     update(deltaTime) {
         // Gravity
-        this.velocity.y -= 0.015;
+        this.velocity.y -= 0.02;
         
         // Ground collision
         if (this.position.y <= 0) {
@@ -319,32 +361,17 @@ class Character {
             this.isGrounded = false;
         }
         
-        // Boundary collision (keep in arena)
-        const maxX = 14;
-        const maxZ = 10;
-        
-        this.position.x = Math.max(-maxX, Math.min(maxX, this.position.x + this.velocity.x));
+        // Update position
         this.position.y += this.velocity.y;
-        this.position.z = Math.max(-maxZ, Math.min(maxZ, this.position.z + this.velocity.z));
+        this.position.z += this.velocity.z;
         
-        // FIX #1: Distance from opponent - safely check if opponent exists
-        const opponent = player1 === this ? player2 : player1;
-        if (opponent) {
-            const distance = this.position.distanceTo(opponent.position);
-            const minDistance = 1.2;
-            
-            if (distance < minDistance) {
-                const direction = new THREE.Vector3().subVectors(this.position, opponent.position).normalize();
-                this.position.addScaledVector(direction, (minDistance - distance) * 0.5);
-            }
-        }
+        // Keep within arena bounds (Z axis)
+        const maxZ = 8;
+        this.position.z = Math.max(-maxZ, Math.min(maxZ, this.position.z));
         
-        // FIX #3: Use deltaTime for cooldowns (real milliseconds)
+        // Cooldowns
         if (this.attackCooldown > 0) {
             this.attackCooldown -= deltaTime;
-        }
-        if (this.blockCooldown > 0) {
-            this.blockCooldown -= deltaTime;
         }
         
         // Stamina regeneration
@@ -353,6 +380,13 @@ class Character {
         // Update group position
         this.group.position.copy(this.position);
         
+        // Update character height if crouching
+        if (this.isCrouching) {
+            this.group.scale.y = this.crouchHeight;
+        } else {
+            this.group.scale.y = 1;
+        }
+        
         // Animation
         this.updateAnimation();
     }
@@ -360,37 +394,50 @@ class Character {
     updateAnimation() {
         const time = Date.now() * 0.001;
         
-        // FIX #4: Reset rotations before applying new ones
-        this.body.rotation.set(0, this.body.rotation.y, 0);
-        this.rightArm.rotation.set(0, 0, 0);
-        this.leftArm.rotation.set(0, 0, 0);
+        // Reset rotations
+        this.rightArm.rotation.z = -0.3;
+        this.leftArm.rotation.z = 0.3;
+        this.rightLeg.rotation.x = 0;
+        this.leftLeg.rotation.x = 0;
         
         switch (this.animationState) {
             case 'idle':
-                this.rightArm.rotation.x = Math.sin(time * 2) * 0.1;
-                this.leftArm.rotation.x = -Math.sin(time * 2) * 0.1;
-                this.rightLeg.rotation.x = 0;
-                this.leftLeg.rotation.x = 0;
+                this.rightArm.rotation.z = -0.3 + Math.sin(time * 2) * 0.1;
+                this.leftArm.rotation.z = 0.3 - Math.sin(time * 2) * 0.1;
                 break;
                 
             case 'running':
-                this.rightArm.rotation.x = Math.sin(time * 6) * 0.5;
-                this.leftArm.rotation.x = -Math.sin(time * 6) * 0.5;
-                this.rightLeg.rotation.x = Math.sin(time * 6) * 0.6;
-                this.leftLeg.rotation.x = -Math.sin(time * 6) * 0.6;
+                this.rightArm.rotation.z = -0.3 + Math.sin(time * 6) * 0.4;
+                this.leftArm.rotation.z = 0.3 - Math.sin(time * 6) * 0.4;
+                this.rightLeg.rotation.x = Math.sin(time * 6) * 0.5;
+                this.leftLeg.rotation.x = -Math.sin(time * 6) * 0.5;
+                break;
+                
+            case 'running_back':
+                this.rightArm.rotation.z = -0.3 - Math.sin(time * 6) * 0.4;
+                this.leftArm.rotation.z = 0.3 + Math.sin(time * 6) * 0.4;
+                this.rightLeg.rotation.x = -Math.sin(time * 6) * 0.5;
+                this.leftLeg.rotation.x = Math.sin(time * 6) * 0.5;
+                break;
+                
+            case 'jump':
+                this.rightArm.rotation.z = -0.8;
+                this.leftArm.rotation.z = 0.8;
+                break;
+                
+            case 'crouch':
+                this.rightArm.rotation.z = -0.1;
+                this.leftArm.rotation.z = 0.1;
                 break;
                 
             case 'attack_weak':
-                this.rightArm.rotation.x = -1.2;
-                this.rightArm.rotation.z = 0.3;
-                this.body.rotation.z = 0.1;
+                this.rightArm.rotation.z = -1.2;
+                this.torso.rotation.x = 0.1;
                 break;
                 
             case 'attack_strong':
-                this.rightArm.rotation.x = -1.5;
-                this.rightArm.rotation.z = 0.5;
-                this.body.rotation.z = 0.2;
-                this.body.rotation.x = 0.1;
+                this.rightArm.rotation.z = -1.5;
+                this.torso.rotation.x = 0.2;
                 break;
         }
     }
@@ -420,8 +467,11 @@ document.getElementById('startButton').addEventListener('click', () => {
     if (player2) scene.remove(player2.group);
     
     // Create new players
-    player1 = new Character(-5, 0x0066ff, 'Kazuya');
-    player2 = new Character(5, 0xff3333, 'Jin', true);
+    player1 = new Character(0, 0x0066ff, 'Kazuya');
+    player2 = new Character(0, 0xff3333, 'Jin', true);
+    
+    player1.position.z = -3;
+    player2.position.z = 3;
     
     player1.health = 100;
     player2.health = 100;
@@ -434,7 +484,6 @@ document.getElementById('startButton').addEventListener('click', () => {
 
 // HUD Update
 function updateHUD() {
-    // FIX #5: Only update if players exist
     if (!player1 || !player2) return;
     
     const p1HealthPercent = (player1.health / player1.maxHealth) * 100;
@@ -458,13 +507,11 @@ function updateHUD() {
 function animate() {
     requestAnimationFrame(animate);
     
-    // Calculate delta time for frame-independent physics
     const now = Date.now();
     const deltaTime = now - gameState.lastFrameTime;
     gameState.lastFrameTime = now;
     
     if (gameState.running && !gameState.gameOver) {
-        // FIX #5: Check if players exist before updating
         if (player1 && player2) {
             player1.getInput();
             player2.getInput();
@@ -476,12 +523,10 @@ function animate() {
         }
     }
     
-    // Camera follow
+    // Camera follows center
     if (player1 && player2) {
-        const centerX = (player1.position.x + player2.position.x) / 2;
         const centerZ = (player1.position.z + player2.position.z) / 2;
-        camera.position.x = centerX;
-        camera.position.z = centerZ + 15;
+        camera.position.z = centerZ + 12;
     }
     
     renderer.render(scene, camera);
