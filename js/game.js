@@ -1,12 +1,24 @@
 // Three.js Scene Setup
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowShadowMap;
-document.getElementById('gameContainer').appendChild(renderer.domElement);
+renderer.setClearColor(0x000000, 1);
+
+// Create a canvas wrapper div to keep it behind start screen
+const canvasContainer = document.createElement('div');
+canvasContainer.id = 'canvasWrapper';
+canvasContainer.style.position = 'absolute';
+canvasContainer.style.top = '0';
+canvasContainer.style.left = '0';
+canvasContainer.style.width = '100%';
+canvasContainer.style.height = '100%';
+canvasContainer.style.zIndex = '1';
+canvasContainer.appendChild(renderer.domElement);
+document.getElementById('gameContainer').insertBefore(canvasContainer, document.getElementById('gameContainer').firstChild);
 
 camera.position.set(0, 5, 15);
 camera.lookAt(0, 2, 0);
@@ -401,6 +413,7 @@ document.addEventListener('keyup', (e) => {
 
 // Start game
 document.getElementById('startButton').addEventListener('click', () => {
+    console.log('Start button clicked!');
     document.getElementById('startScreen').classList.add('hidden');
     gameState.running = true;
     gameState.gameOver = false;
@@ -425,6 +438,8 @@ document.getElementById('startButton').addEventListener('click', () => {
 
 // HUD Update
 function updateHUD() {
+    if (!player1 || !player2) return;
+    
     const p1HealthPercent = (player1.health / player1.maxHealth) * 100;
     const p2HealthPercent = (player2.health / player2.maxHealth) * 100;
     
@@ -448,11 +463,11 @@ function animate() {
     
     if (gameState.running && !gameState.gameOver) {
         // Update players
-        player1.getInput();
-        player2.getInput();
+        if (player1) player1.getInput();
+        if (player2) player2.getInput();
         
-        player1.update();
-        player2.update();
+        if (player1) player1.update();
+        if (player2) player2.update();
         
         updateHUD();
     }
