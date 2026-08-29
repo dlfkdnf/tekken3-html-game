@@ -17,6 +17,7 @@ canvasContainer.style.left = '0';
 canvasContainer.style.width = '100%';
 canvasContainer.style.height = '100%';
 canvasContainer.style.zIndex = '1';
+canvasContainer.style.pointerEvents = 'none'; // Prevent canvas from blocking interactions
 canvasContainer.appendChild(renderer.domElement);
 document.getElementById('gameContainer').insertBefore(canvasContainer, document.getElementById('gameContainer').firstChild);
 
@@ -89,7 +90,9 @@ scene.add(frontWall);
 const gameState = {
     running: false,
     gameOver: false,
-    winner: null
+    winner: null,
+    deltaTime: 0,
+    lastFrameTime: Date.now()
 };
 
 const keys = {};
@@ -117,11 +120,11 @@ class Character {
         
         // Attack state
         this.isAttacking = false;
-        this.attackCooldown = 0;
+        this.attackCooldown = 0; // in milliseconds
         this.attackType = null; // 'weak' or 'strong'
         this.lastAttackTime = 0;
         this.comboCounter = 0;
-        this.comboTimeout = 0;
+        this.comboLastAttackTime = 0; // Track when last attack was for combo
         
         // Defense
         this.isBlocking = false;
@@ -266,37 +269,42 @@ class Character {
     }
     
     attack(type) {
-        if (this.attackCooldown > 0) return;
-        if (this.stamina < (type === 'weak' ? 5 : 15)) return;
+        // FIX #1: Check if both players exist before trying to attack
+        const opponent = player1 === this ? player2 : player1;
+        if (!opponent) return;
         
+        // FIX #3: Use actual elapsed time for cooldown (milliseconds)
         const now = Date.now();
-        if (now - this.lastAttackTime < 200) {
+        if (this.attackCooldown > 0) return;
+        
+        // FIX #2: Check combo window properly (0.5 seconds)
+        if (now - this.comboLastAttackTime < 500) {
             this.comboCounter++;
         } else {
             this.comboCounter = 1;
         }
         
-        this.lastAttackTime = now;
+        this.comboLastAttackTime = now;
         this.isAttacking = true;
         this.attackType = type;
         this.animationState = type === 'weak' ? 'attack_weak' : 'attack_strong';
         
         const damage = type === 'weak' ? 5 : 15;
         const staminaCost = type === 'weak' ? 5 : 15;
-        const cooldown = type === 'weak' ? 300 : 500;
+        const cooldown = type === 'weak' ? 300 : 500; // milliseconds
+        
+        if (this.stamina < staminaCost) return;
         
         this.stamina = Math.max(0, this.stamina - staminaCost);
         this.attackCooldown = cooldown;
         
         // Check for hit on opponent
-        const opponent = player1 === this ? player2 : player1;
         const distance = this.position.distanceTo(opponent.position);
         const hitRange = 2.5;
         
         if (distance < hitRange) {
             const damageWithCombo = damage + (this.comboCounter - 1) * 2;
             opponent.takeDamage(damageWithCombo, this.comboCounter);
-            updateHUD();
         }
         
         setTimeout(() => {
@@ -313,7 +321,7 @@ class Character {
         }
     }
     
-    update() {
+    update(deltaTime) {
         // Gravity
         this.velocity.y -= 0.015;
         
@@ -335,25 +343,25 @@ class Character {
         this.position.y += this.velocity.y;
         this.position.z = Math.max(-maxZ, Math.min(maxZ, this.position.z + this.velocity.z));
         
-        // Distance from opponent (prevent overlap)
+        // FIX #1: Distance from opponent - safely check if opponent exists
         const opponent = player1 === this ? player2 : player1;
-        const distance = this.position.distanceTo(opponent.position);
-        const minDistance = 1.2;
-        
-        if (distance < minDistance) {
-            const direction = new THREE.Vector3().subVectors(this.position, opponent.position).normalize();
-            this.position.addScaledVector(direction, (minDistance - distance) * 0.5);
+        if (opponent) {
+            const distance = this.position.distanceTo(opponent.position);
+            const minDistance = 1.2;
+            
+            if (distance < minDistance) {
+                const direction = new THREE.Vector3().subVectors(this.position, opponent.position).normalize();
+                this.position.addScaledVector(direction, (minDistance - distance) * 0.5);
+            }
         }
         
-        // Cooldowns
-        if (this.attackCooldown > 0) this.attackCooldown--;
-        if (this.blockCooldown > 0) this.blockCooldown--;
-        if (this.comboTimeout > 0) {
-            this.comboTimeout--;
-        } else {
-            this.comboCounter = 0;
+        // FIX #3: Use deltaTime for cooldowns (real milliseconds)
+        if (this.attackCooldown > 0) {
+            this.attackCooldown -= deltaTime;
         }
-        this.comboTimeout = 2000; // Reset combo after 2 seconds
+        if (this.blockCooldown > 0) {
+            this.blockCooldown -= deltaTime;
+        }
         
         // Stamina regeneration
         this.stamina = Math.min(this.maxStamina, this.stamina + 0.3);
@@ -367,6 +375,11 @@ class Character {
     
     updateAnimation() {
         const time = Date.now() * 0.001;
+        
+        // FIX #4: Reset rotations before applying new ones
+        this.body.rotation.set(0, this.body.rotation.y, 0);
+        this.rightArm.rotation.set(0, 0, 0);
+        this.leftArm.rotation.set(0, 0, 0);
         
         switch (this.animationState) {
             case 'idle':
@@ -413,7 +426,6 @@ document.addEventListener('keyup', (e) => {
 
 // Start game
 document.getElementById('startButton').addEventListener('click', () => {
-    console.log('Start button clicked!');
     document.getElementById('startScreen').classList.add('hidden');
     gameState.running = true;
     gameState.gameOver = false;
@@ -438,6 +450,7 @@ document.getElementById('startButton').addEventListener('click', () => {
 
 // HUD Update
 function updateHUD() {
+    // FIX #5: Only update if players exist
     if (!player1 || !player2) return;
     
     const p1HealthPercent = (player1.health / player1.maxHealth) * 100;
@@ -461,15 +474,22 @@ function updateHUD() {
 function animate() {
     requestAnimationFrame(animate);
     
+    // Calculate delta time for frame-independent physics
+    const now = Date.now();
+    const deltaTime = now - gameState.lastFrameTime;
+    gameState.lastFrameTime = now;
+    
     if (gameState.running && !gameState.gameOver) {
-        // Update players
-        if (player1) player1.getInput();
-        if (player2) player2.getInput();
-        
-        if (player1) player1.update();
-        if (player2) player2.update();
-        
-        updateHUD();
+        // FIX #5: Check if players exist before updating
+        if (player1 && player2) {
+            player1.getInput();
+            player2.getInput();
+            
+            player1.update(deltaTime);
+            player2.update(deltaTime);
+            
+            updateHUD();
+        }
     }
     
     // Camera follow
