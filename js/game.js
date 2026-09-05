@@ -228,21 +228,25 @@ class Character {
         let attackStrong = false;
         
         if (this.isPlayer2) {
-            // Player 2: WASD (W backward, S forward)
-            if (keys['w'] || keys['W']) moveBackward = true;
-            if (keys['s'] || keys['S']) moveForward = true;
-            if (keys['a'] || keys['A']) crouch = true;
+            // Player 2: WASD
+            // W = 점프, S = 앉기
+            // A = 앞으로 (상대쪽으로), D = 뒤로 (멀어지기)
+            if (keys['w'] || keys['W']) jump = true;
+            if (keys['s'] || keys['S']) crouch = true;
+            if (keys['a'] || keys['A']) moveForward = true;
+            if (keys['d'] || keys['D']) moveBackward = true;
             if (keys['o'] || keys['O']) attackWeak = true;
             if (keys['p'] || keys['P']) attackStrong = true;
-            if (keys[' ']) jump = true;
         } else {
-            // Player 1: Arrow keys (Up forward, Down backward)
-            if (keys['ArrowUp']) moveForward = true;
-            if (keys['ArrowDown']) moveBackward = true;
-            if (keys['ArrowLeft']) crouch = true;
+            // Player 1: Arrow keys
+            // ↑ = 점프, ↓ = 앉기
+            // → = 앞으로 (상대쪽으로), ← = 뒤로 (멀어지기)
+            if (keys['ArrowUp']) jump = true;
+            if (keys['ArrowDown']) crouch = true;
+            if (keys['ArrowRight']) moveForward = true;
+            if (keys['ArrowLeft']) moveBackward = true;
             if (keys['z'] || keys['Z']) attackWeak = true;
             if (keys['x'] || keys['X']) attackStrong = true;
-            if (keys[' ']) jump = true;
         }
         
         this.move(moveForward, moveBackward);
@@ -275,9 +279,11 @@ class Character {
         
         if (forward) {
             // Player 1 goes right (positive X), Player 2 goes left (negative X)
+            // Forward means going toward opponent
             this.velocity.x = this.moveSpeed * (this.isPlayer2 ? -1 : 1);
             this.animationState = 'running';
         } else if (backward) {
+            // Backward means going away from opponent
             this.velocity.x = -this.moveSpeed * (this.isPlayer2 ? -1 : 1);
             this.animationState = 'running_back';
         } else {
