@@ -21,8 +21,9 @@ canvasContainer.style.pointerEvents = 'none';
 canvasContainer.appendChild(renderer.domElement);
 document.getElementById('gameContainer').insertBefore(canvasContainer, document.getElementById('gameContainer').firstChild);
 
-camera.position.set(0, 3, 12);
-camera.lookAt(0, 1.5, 0);
+// Side view camera - looking along Z axis
+camera.position.set(0, 2, 0);
+camera.lookAt(0, 1, 5);
 
 // Lighting
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
@@ -35,8 +36,8 @@ directionalLight.shadow.mapSize.width = 2048;
 directionalLight.shadow.mapSize.height = 2048;
 scene.add(directionalLight);
 
-// Arena/Ground
-const groundGeometry = new THREE.PlaneGeometry(30, 20);
+// Arena/Ground (now stretched along Z axis)
+const groundGeometry = new THREE.PlaneGeometry(6, 30);
 const groundMaterial = new THREE.MeshStandardMaterial({ 
     color: 0x2a2a2a,
     metalness: 0.3,
@@ -83,14 +84,14 @@ const keys = {};
 
 // Character Class - Tekken style (2D fighting on Z axis)
 class Character {
-    constructor(x, color, name, isPlayer2 = false) {
+    constructor(z, color, name, isPlayer2 = false) {
         this.isPlayer2 = isPlayer2;
         this.name = name;
         this.color = color;
         this.facing = isPlayer2 ? 1 : -1; // Face direction
         
         // Position and movement (Z axis for forward/backward in Tekken)
-        this.position = new THREE.Vector3(x, 0, 0);
+        this.position = new THREE.Vector3(0, 0, z);
         this.velocity = new THREE.Vector3(0, 0, 0);
         this.moveSpeed = 0.2;
         this.jumpPower = 0.8;
@@ -366,7 +367,7 @@ class Character {
         this.position.z += this.velocity.z;
         
         // Keep within arena bounds (Z axis)
-        const maxZ = 8;
+        const maxZ = 12;
         this.position.z = Math.max(-maxZ, Math.min(maxZ, this.position.z));
         
         // Cooldowns
@@ -466,12 +467,9 @@ document.getElementById('startButton').addEventListener('click', () => {
     if (player1) scene.remove(player1.group);
     if (player2) scene.remove(player2.group);
     
-    // Create new players
-    player1 = new Character(0, 0x0066ff, 'Kazuya');
-    player2 = new Character(0, 0xff3333, 'Jin', true);
-    
-    player1.position.z = -3;
-    player2.position.z = 3;
+    // Create new players - positioned on Z axis
+    player1 = new Character(-8, 0x0066ff, 'Kazuya');
+    player2 = new Character(8, 0xff3333, 'Jin', true);
     
     player1.health = 100;
     player2.health = 100;
@@ -523,10 +521,11 @@ function animate() {
         }
     }
     
-    // Camera follows center
+    // Camera follows center on Z axis - side view
     if (player1 && player2) {
         const centerZ = (player1.position.z + player2.position.z) / 2;
-        camera.position.z = centerZ + 12;
+        camera.position.set(0, 2, centerZ);
+        camera.lookAt(0, 1, centerZ + 5);
     }
     
     renderer.render(scene, camera);
