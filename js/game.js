@@ -21,9 +21,9 @@ canvasContainer.style.pointerEvents = 'none';
 canvasContainer.appendChild(renderer.domElement);
 document.getElementById('gameContainer').insertBefore(canvasContainer, document.getElementById('gameContainer').firstChild);
 
-// Front view camera - looking at characters side by side
-camera.position.set(0, 2, 12);
-camera.lookAt(0, 1.5, 0);
+// Camera looking straight at the characters from the front
+camera.position.set(0, 2, 8);
+camera.lookAt(0, 1, 0);
 
 // Lighting
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
@@ -521,13 +521,9 @@ function animate() {
         }
     }
     
-    // Camera follows center on X axis
-    if (player1 && player2) {
-        const centerX = (player1.position.x + player2.position.x) / 2;
-        camera.position.x = centerX;
-        camera.position.set(centerX, 2, 12);
-        camera.lookAt(centerX, 1.5, 0);
-    }
+    // Camera position fixed - looking at characters from front
+    camera.position.set(0, 2, 8);
+    camera.lookAt(0, 1, 0);
     
     renderer.render(scene, camera);
 }
