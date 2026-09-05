@@ -467,9 +467,9 @@ document.getElementById('startButton').addEventListener('click', () => {
     if (player1) scene.remove(player1.group);
     if (player2) scene.remove(player2.group);
     
-    // Create new players - positioned on X axis (side by side)
-    player1 = new Character(-5, 0x0066ff, 'Kazuya');
-    player2 = new Character(5, 0xff3333, 'Jin', true);
+    // Create new players - positioned far apart on X axis (side by side)
+    player1 = new Character(-8, 0x0066ff, 'Kazuya');
+    player2 = new Character(8, 0xff3333, 'Jin', true);
     
     player1.health = 100;
     player2.health = 100;
