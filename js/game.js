@@ -21,9 +21,9 @@ canvasContainer.style.pointerEvents = 'none';
 canvasContainer.appendChild(renderer.domElement);
 document.getElementById('gameContainer').insertBefore(canvasContainer, document.getElementById('gameContainer').firstChild);
 
-// Side view camera - looking along Z axis
-camera.position.set(0, 2, 0);
-camera.lookAt(0, 1, 5);
+// Front view camera - looking at characters side by side
+camera.position.set(0, 2, 12);
+camera.lookAt(0, 1.5, 0);
 
 // Lighting
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
@@ -36,8 +36,8 @@ directionalLight.shadow.mapSize.width = 2048;
 directionalLight.shadow.mapSize.height = 2048;
 scene.add(directionalLight);
 
-// Arena/Ground (now stretched along Z axis)
-const groundGeometry = new THREE.PlaneGeometry(6, 30);
+// Arena/Ground (wide along X axis)
+const groundGeometry = new THREE.PlaneGeometry(30, 20);
 const groundMaterial = new THREE.MeshStandardMaterial({ 
     color: 0x2a2a2a,
     metalness: 0.3,
@@ -82,16 +82,15 @@ const gameState = {
 
 const keys = {};
 
-// Character Class - Tekken style (2D fighting on Z axis)
+// Character Class - Tekken style (side by side on X axis)
 class Character {
-    constructor(z, color, name, isPlayer2 = false) {
+    constructor(x, color, name, isPlayer2 = false) {
         this.isPlayer2 = isPlayer2;
         this.name = name;
         this.color = color;
-        this.facing = isPlayer2 ? 1 : -1; // Face direction
         
-        // Position and movement (Z axis for forward/backward in Tekken)
-        this.position = new THREE.Vector3(0, 0, z);
+        // Position and movement (X axis for side to side - left/right)
+        this.position = new THREE.Vector3(x, 0, 0);
         this.velocity = new THREE.Vector3(0, 0, 0);
         this.moveSpeed = 0.2;
         this.jumpPower = 0.8;
@@ -229,9 +228,9 @@ class Character {
         let attackStrong = false;
         
         if (this.isPlayer2) {
-            // Player 2: WASD (W forward, S backward)
-            if (keys['w'] || keys['W']) moveForward = true;
-            if (keys['s'] || keys['S']) moveBackward = true;
+            // Player 2: WASD (W backward, S forward)
+            if (keys['w'] || keys['W']) moveBackward = true;
+            if (keys['s'] || keys['S']) moveForward = true;
             if (keys['a'] || keys['A']) crouch = true;
             if (keys['o'] || keys['O']) attackWeak = true;
             if (keys['p'] || keys['P']) attackStrong = true;
@@ -269,19 +268,20 @@ class Character {
     
     move(forward, backward) {
         if (this.isAttacking || this.isCrouching) {
-            this.velocity.z = 0;
+            this.velocity.x = 0;
             this.animationState = 'idle';
             return;
         }
         
         if (forward) {
-            this.velocity.z = this.moveSpeed * this.facing;
+            // Player 1 goes right (positive X), Player 2 goes left (negative X)
+            this.velocity.x = this.moveSpeed * (this.isPlayer2 ? -1 : 1);
             this.animationState = 'running';
         } else if (backward) {
-            this.velocity.z = -this.moveSpeed * this.facing;
+            this.velocity.x = -this.moveSpeed * (this.isPlayer2 ? -1 : 1);
             this.animationState = 'running_back';
         } else {
-            this.velocity.z = 0;
+            this.velocity.x = 0;
             this.animationState = 'idle';
         }
     }
@@ -325,8 +325,8 @@ class Character {
         this.stamina = Math.max(0, this.stamina - staminaCost);
         this.attackCooldown = cooldown;
         
-        // Check for hit (same Z line)
-        const distance = Math.abs(this.position.z - opponent.position.z);
+        // Check for hit (on X axis distance)
+        const distance = Math.abs(this.position.x - opponent.position.x);
         const hitRange = 1.5;
         
         if (distance < hitRange) {
@@ -364,11 +364,11 @@ class Character {
         
         // Update position
         this.position.y += this.velocity.y;
-        this.position.z += this.velocity.z;
+        this.position.x += this.velocity.x;
         
-        // Keep within arena bounds (Z axis)
-        const maxZ = 12;
-        this.position.z = Math.max(-maxZ, Math.min(maxZ, this.position.z));
+        // Keep within arena bounds (X axis)
+        const maxX = 12;
+        this.position.x = Math.max(-maxX, Math.min(maxX, this.position.x));
         
         // Cooldowns
         if (this.attackCooldown > 0) {
@@ -467,9 +467,9 @@ document.getElementById('startButton').addEventListener('click', () => {
     if (player1) scene.remove(player1.group);
     if (player2) scene.remove(player2.group);
     
-    // Create new players - positioned on Z axis
-    player1 = new Character(-8, 0x0066ff, 'Kazuya');
-    player2 = new Character(8, 0xff3333, 'Jin', true);
+    // Create new players - positioned on X axis (side by side)
+    player1 = new Character(-5, 0x0066ff, 'Kazuya');
+    player2 = new Character(5, 0xff3333, 'Jin', true);
     
     player1.health = 100;
     player2.health = 100;
@@ -521,11 +521,12 @@ function animate() {
         }
     }
     
-    // Camera follows center on Z axis - side view
+    // Camera follows center on X axis
     if (player1 && player2) {
-        const centerZ = (player1.position.z + player2.position.z) / 2;
-        camera.position.set(0, 2, centerZ);
-        camera.lookAt(0, 1, centerZ + 5);
+        const centerX = (player1.position.x + player2.position.x) / 2;
+        camera.position.x = centerX;
+        camera.position.set(centerX, 2, 12);
+        camera.lookAt(centerX, 1.5, 0);
     }
     
     renderer.render(scene, camera);
