@@ -21,9 +21,9 @@ canvasContainer.style.pointerEvents = 'none';
 canvasContainer.appendChild(renderer.domElement);
 document.getElementById('gameContainer').insertBefore(canvasContainer, document.getElementById('gameContainer').firstChild);
 
-// Camera looking straight at the characters from the front
-camera.position.set(0, 2, 8);
-camera.lookAt(0, 1, 0);
+// Wide angle camera - looking from the side, showing both characters spread out
+camera.position.set(0, 3, 15);
+camera.lookAt(0, 2, 0);
 
 // Lighting
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
@@ -37,7 +37,7 @@ directionalLight.shadow.mapSize.height = 2048;
 scene.add(directionalLight);
 
 // Arena/Ground (wide along X axis)
-const groundGeometry = new THREE.PlaneGeometry(30, 20);
+const groundGeometry = new THREE.PlaneGeometry(40, 20);
 const groundMaterial = new THREE.MeshStandardMaterial({ 
     color: 0x2a2a2a,
     metalness: 0.3,
@@ -367,7 +367,7 @@ class Character {
         this.position.x += this.velocity.x;
         
         // Keep within arena bounds (X axis)
-        const maxX = 12;
+        const maxX = 15;
         this.position.x = Math.max(-maxX, Math.min(maxX, this.position.x));
         
         // Cooldowns
@@ -467,9 +467,9 @@ document.getElementById('startButton').addEventListener('click', () => {
     if (player1) scene.remove(player1.group);
     if (player2) scene.remove(player2.group);
     
-    // Create new players - positioned far apart on X axis (side by side)
-    player1 = new Character(-8, 0x0066ff, 'Kazuya');
-    player2 = new Character(8, 0xff3333, 'Jin', true);
+    // Create new players - positioned far apart on X axis
+    player1 = new Character(-10, 0x0066ff, 'Kazuya');
+    player2 = new Character(10, 0xff3333, 'Jin', true);
     
     player1.health = 100;
     player2.health = 100;
@@ -521,9 +521,9 @@ function animate() {
         }
     }
     
-    // Camera position fixed - looking at characters from front
-    camera.position.set(0, 2, 8);
-    camera.lookAt(0, 1, 0);
+    // Camera fixed position showing both characters spread out
+    camera.position.set(0, 3, 15);
+    camera.lookAt(0, 2, 0);
     
     renderer.render(scene, camera);
 }
